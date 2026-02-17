@@ -1,6 +1,6 @@
 # IDM Helper
 A native Rust desktop application for Windows to solve a painful SAP IDM role comparison workflow that should have been solved years ago.
-This started as a single-file HTML too. That version worked well and and saved a lot of time, but the nature of a portable document makes the tool feel too constrained.
+This started as a single-file HTML tool. That version worked well and and saved a lot of time, but the nature of a portable document makes the tool feel too constrained.
 
 ---
 

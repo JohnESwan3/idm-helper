@@ -12,7 +12,7 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default()
             .with_title("IDM Helper")
             .with_inner_size([1280.0, 820.0])
-            .with_min_inner_size([1024.0, 700.0]),
+            .with_min_inner_size([340.0, 340.0]),
         ..Default::default()
     };
 

@@ -21,24 +21,47 @@ impl ActiveTab {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)] // Why am I doing this? -_-
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThemeChoice {
     System,
     Dark,
+    DarkGray,
     LightGray,
+    LightSlate,
+    DarkSlate,
+    SolarizedLight,
+    SolarizedDark,
+    WinterIsComing,
     Nord,
 }
 
 impl ThemeChoice {
-    pub const fn all() -> [Self; 4] {
-        [Self::System, Self::Dark, Self::LightGray, Self::Nord]
+    pub const fn all() -> [Self; 10] {
+        [
+            Self::System,
+            Self::Dark,
+            Self::DarkGray,
+            Self::LightGray,
+            Self::LightSlate,
+            Self::DarkSlate,
+            Self::SolarizedLight,
+            Self::SolarizedDark,
+            Self::WinterIsComing,
+            Self::Nord,
+        ]
     }
 
     pub const fn label(self) -> &'static str {
         match self {
             Self::System => "System",
             Self::Dark => "Dark",
+            Self::DarkGray => "Dark Gray",
             Self::LightGray => "Light Gray",
+            Self::LightSlate => "Light Slate",
+            Self::DarkSlate => "Dark Slate",
+            Self::SolarizedLight => "Solarized Light",
+            Self::SolarizedDark => "Solarized Dark",
+            Self::WinterIsComing => "Winter is Coming",
             Self::Nord => "Nord",
         }
     }

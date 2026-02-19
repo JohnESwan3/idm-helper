@@ -1,0 +1,1030 @@
+<!--
+1) Right Click > Open With > Choose a browser
+2) Expand the Scraper Script dropdown and click "Copy Script"
+3) Open IDM and search for the user > Change Identity >Assigned Roles and Privileges
+4) Press F12 to open dev tools and click on the Console tab. The Assigned roles MUST be scrolled to the top
+5) Paste the script into the console and press Enter
+6) You do not need to keep the tab active, but do not close the tab until scraping is done
+
+The script will scrape all visible roles, check for a scrollbar and scroll it until it cannot scroll further (looks for changes in roles)
+A file will then be downloaded to your system, which can be uploaded into the webpage that this file is open in to compare roles
+
+Best to use option 3. Option 1 and 2 are there if you need roles for other purposes outside of this tool.
+
+If the styles break, it is probably because of internet issues or the TailwindCSS  CDN has changed or is blocked. Look at the 7th line in the html code to fix this with an updated link.
+-->
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>IDM Role Comparison Tool</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap"
+            rel="stylesheet"
+        />
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        colors: {
+                            accent: {
+                                DEFAULT: "hsl(160, 67%, 20%)",
+                                light: "hsl(160, 67%, 28%)",
+                                text: "hsl(160, 67%, 45%)",
+                            },
+                        },
+                        fontFamily: {
+                            sans: ["DM Sans", "system-ui", "sans-serif"],
+                            mono: ["JetBrains Mono", "monospace"],
+                        },
+                    },
+                },
+            };
+        </script>
+        <style>
+            * {
+                font-family: "DM Sans", system-ui, sans-serif;
+            }
+            input[type="file"]::file-selector-button {
+                background: #27272a;
+                color: #d4d4d8;
+                border: 1px solid #3f3f46;
+                padding: 8px 14px;
+                border-radius: 6px;
+                font-weight: 500;
+                font-size: 13px;
+                cursor: pointer;
+                margin-right: 12px;
+                transition: all 0.15s ease;
+            }
+            input[type="file"]::file-selector-button:hover {
+                background: #3f3f46;
+            }
+            input[type="checkbox"],
+            input[type="radio"] {
+                accent-color: hsl(160, 67%, 30%);
+            }
+            ::-webkit-scrollbar {
+                width: 6px;
+                height: 6px;
+            }
+            ::-webkit-scrollbar-track {
+                background: #18181b;
+            }
+            ::-webkit-scrollbar-thumb {
+                background: #3f3f46;
+                border-radius: 3px;
+            }
+            ::-webkit-scrollbar-thumb:hover {
+                background: #52525b;
+            }
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(8px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            @keyframes slideIn {
+                from {
+                    opacity: 0;
+                    transform: translateX(100%);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+            @keyframes slideOut {
+                from {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+                to {
+                    opacity: 0;
+                    transform: translateX(100%);
+                }
+            }
+            .fade-in {
+                animation: fadeIn 0.3s ease;
+            }
+            .toast-in {
+                animation: slideIn 0.3s ease;
+            }
+            .toast-out {
+                animation: slideOut 0.3s ease forwards;
+            }
+        </style>
+    </head>
+    <body
+        class="bg-zinc-950 text-zinc-200 min-h-screen py-6 px-4 sm:py-8 sm:px-6 lg:px-8"
+    >
+        <div class="max-w-5xl mx-auto">
+            <!-- Header -->
+            <header class="mb-6 sm:mb-8">
+                <h1 class="text-lg sm:text-xl font-semibold text-zinc-100">
+                    IDM Role Comparison Tool
+                </h1>
+                <p class="text-sm text-zinc-500">
+                    Compare SAP IDM roles across multiple users
+                </p>
+            </header>
+
+            <!-- Scraper Script -->
+            <section
+                class="bg-zinc-900 border border-zinc-800 rounded-lg mb-4 sm:mb-5 overflow-hidden"
+            >
+                <button
+                    id="scriptToggle"
+                    class="w-full px-4 sm:px-5 py-4 flex items-center justify-between hover:bg-zinc-800/50 transition-colors"
+                >
+                    <span class="text-sm font-medium text-zinc-200"
+                        >Scraper Script</span
+                    >
+                    <span
+                        id="scriptChevron"
+                        class="text-zinc-500 text-sm transition-transform duration-200"
+                        >▼</span
+                    >
+                </button>
+
+                <div id="scriptContent" class="hidden border-t border-zinc-800">
+                    <div class="p-4 sm:p-5">
+                        <div
+                            class="bg-zinc-950 rounded-lg p-4 mb-4 border border-zinc-800"
+                        >
+                            <ol class="space-y-2">
+                                <li
+                                    class="flex items-start gap-3 text-sm text-zinc-400"
+                                >
+                                    <span
+                                        class="w-5 h-5 rounded-full bg-accent text-zinc-100 flex items-center justify-center text-xs font-semibold shrink-0"
+                                        >1</span
+                                    >
+                                    <span>Copy the script below</span>
+                                </li>
+                                <li
+                                    class="flex items-start gap-3 text-sm text-zinc-400"
+                                >
+                                    <span
+                                        class="w-5 h-5 rounded-full bg-accent text-zinc-100 flex items-center justify-center text-xs font-semibold shrink-0"
+                                        >2</span
+                                    >
+                                    <span
+                                        >Open SAP IDM user's role assignment
+                                        page</span
+                                    >
+                                </li>
+                                <li
+                                    class="flex items-start gap-3 text-sm text-zinc-400"
+                                >
+                                    <span
+                                        class="w-5 h-5 rounded-full bg-accent text-zinc-100 flex items-center justify-center text-xs font-semibold shrink-0"
+                                        >3</span
+                                    >
+                                    <span
+                                        >Open console (<kbd
+                                            class="px-1.5 py-0.5 bg-zinc-800 border border-zinc-700 rounded text-xs font-mono text-zinc-300"
+                                            >F12</kbd
+                                        >) and paste</span
+                                    >
+                                </li>
+                                <li
+                                    class="flex items-start gap-3 text-sm text-zinc-400"
+                                >
+                                    <span
+                                        class="w-5 h-5 rounded-full bg-accent text-zinc-100 flex items-center justify-center text-xs font-semibold shrink-0"
+                                        >4</span
+                                    >
+                                    <span
+                                        >Upload the downloaded file below</span
+                                    >
+                                </li>
+                            </ol>
+                        </div>
+
+                        <div class="flex items-center justify-end mb-3 gap-3">
+                            <span id="copyStatus" class="text-sm"></span>
+                            <button
+                                id="copyScriptBtn"
+                                class="bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                            >
+                                Copy Script
+                            </button>
+                        </div>
+                        <pre
+                            id="scraperScript"
+                            class="bg-zinc-950 border border-zinc-800 rounded-md p-4 overflow-x-auto font-mono text-xs leading-relaxed text-zinc-400 max-h-72 overflow-y-auto"
+                        ></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Comparison Settings -->
+            <section
+                class="bg-zinc-900 border border-zinc-800 rounded-lg mb-4 sm:mb-5"
+            >
+                <div class="px-4 sm:px-5 py-4 border-b border-zinc-800">
+                    <span class="text-sm font-medium text-zinc-200"
+                        >Comparison Settings</span
+                    >
+                </div>
+
+                <div class="p-4 sm:p-5">
+                    <div class="mb-4">
+                        <label
+                            class="block text-sm font-medium text-zinc-300 mb-3"
+                            >Compare by</label
+                        >
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="compareType"
+                                    value="displayNames"
+                                    class="hidden peer"
+                                />
+                                <div
+                                    class="flex items-center gap-3 p-3 sm:p-4 border border-zinc-700 rounded-lg bg-zinc-800/50 peer-checked:border-accent-light peer-checked:bg-accent/10 hover:border-zinc-600 transition-colors"
+                                >
+                                    <div
+                                        class="w-4 h-4 rounded-full border-2 border-zinc-600 peer-checked:border-accent-light peer-checked:bg-accent shrink-0"
+                                    ></div>
+                                    <span
+                                        class="text-sm font-medium text-zinc-200"
+                                        >Display Names</span
+                                    >
+                                </div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="compareType"
+                                    value="uniqueIds"
+                                    class="hidden peer"
+                                    checked
+                                />
+                                <div
+                                    class="flex items-center gap-3 p-3 sm:p-4 border border-zinc-700 rounded-lg bg-zinc-800/50 peer-checked:border-accent-light peer-checked:bg-accent/10 hover:border-zinc-600 transition-colors"
+                                >
+                                    <div
+                                        class="w-4 h-4 rounded-full border-2 border-zinc-600 peer-checked:border-accent-light peer-checked:bg-accent shrink-0"
+                                    ></div>
+                                    <span
+                                        class="text-sm font-medium text-zinc-200"
+                                        >Unique IDs</span
+                                    >
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="transformSection" class="block">
+                        <label
+                            class="flex items-start gap-3 p-4 bg-zinc-950 rounded-lg border border-zinc-800 cursor-pointer hover:border-zinc-700 transition-colors"
+                        >
+                            <input
+                                type="checkbox"
+                                id="applyTransform"
+                                class="mt-0.5 w-4 h-4 shrink-0"
+                            />
+                            <div>
+                                <span class="text-sm font-medium text-zinc-300"
+                                    >Apply wildcard transformations</span
+                                >
+                                <p class="text-xs text-zinc-500 mt-1">
+                                    <code class="font-mono text-zinc-400"
+                                        >PRIV:ROLE:X → *X</code
+                                    >
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Users Section -->
+            <section
+                class="bg-zinc-900 border border-zinc-800 rounded-lg mb-4 sm:mb-5"
+            >
+                <div
+                    class="px-4 sm:px-5 py-4 border-b border-zinc-800 flex items-center justify-between"
+                >
+                    <span class="text-sm font-medium text-zinc-200">Users</span>
+                    <button
+                        id="addUserBtn"
+                        class="bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+                    >
+                        + Add User
+                    </button>
+                </div>
+
+                <div class="p-4 sm:p-5">
+                    <div id="usersContainer" class="space-y-4"></div>
+                </div>
+            </section>
+
+            <!-- Action Buttons -->
+            <section
+                class="bg-zinc-900 border border-zinc-800 rounded-lg mb-4 sm:mb-5"
+            >
+                <div class="p-4 sm:p-5">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <button
+                            id="compareBtn"
+                            disabled
+                            class="bg-accent hover:bg-accent-light disabled:bg-zinc-700 disabled:text-zinc-500 text-zinc-100 py-3 rounded-md font-medium transition-colors disabled:cursor-not-allowed"
+                        >
+                            Compare Roles
+                        </button>
+                        <button
+                            id="exportBtn"
+                            disabled
+                            class="bg-accent hover:bg-accent-light disabled:bg-zinc-700 disabled:text-zinc-500 text-zinc-100 py-3 rounded-md font-medium transition-colors disabled:cursor-not-allowed"
+                        >
+                            Export CSV
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section id="results" class="hidden fade-in">
+                <div
+                    class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden"
+                >
+                    <div class="border-b border-zinc-800 bg-zinc-950">
+                        <div id="tabNav" class="flex overflow-x-auto"></div>
+                    </div>
+                    <div id="tabContent"></div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Toast Container -->
+        <div
+            id="toastContainer"
+            class="fixed bottom-4 right-4 z-50 flex flex-col gap-2"
+        ></div>
+
+        <script>
+            const SCRAPER_SCRIPT = `(async function () {
+  const username = prompt("Enter username for extraction:");
+  if (username === null || username.trim().length === 0) {
+    console.log("Extraction cancelled");
+    return;
+  }
+
+  const dataType = prompt('Extract:\\n"1" Display Name\\n"2" Unique ID\\n"3" Both: If comparing roles');
+  if (!["1", "2", "3"].includes(dataType)) {
+    console.error("Invalid selection");
+    return;
+  }
+
+  const extractDisplayNames = dataType === "1" || dataType === "3";
+  const extractUniqueIds = dataType === "2" || dataType === "3";
+  const sanitizedUsername = username.trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+
+  const displayNames = new Set();
+  const uniqueIds = new Set();
+  let noChangeCount = 0;
+
+  function extractVisibleData() {
+    let newCount = 0;
+    if (extractDisplayNames) {
+      document.querySelectorAll('a[id*="LinkToActionDisplayValue"] span.lsLink__text').forEach((cell) => {
+        const name = cell.textContent.trim();
+        if (name && !displayNames.has(name)) { displayNames.add(name); newCount++; }
+      });
+    }
+    if (extractUniqueIds) {
+      document.querySelectorAll('span[id*="TextViewUniqueName"]').forEach((cell) => {
+        const id = cell.textContent.trim();
+        if (id && !uniqueIds.has(id)) { uniqueIds.add(id); newCount++; }
+      });
+    }
+    return newCount;
+  }
+
+  function scrollDown() {
+    const btn = document.getElementById("GJPNCCIKEJCC.ModifyEntryReferencesView.TableUnfoldable-scrollV-Nxt");
+    if (btn) { btn.click(); return true; }
+    return false;
+  }
+
+  if (!document.getElementById("GJPNCCIKEJCC.ModifyEntryReferencesView.TableUnfoldable")) {
+    alert("Table not found. Make sure IDM table is loaded.");
+    return;
+  }
+
+  extractVisibleData();
+  for (let i = 0; i < 2000; i++) {
+    const before = displayNames.size + uniqueIds.size;
+    if (!scrollDown()) break;
+    await new Promise(r => setTimeout(r, 300));
+    extractVisibleData();
+    if (displayNames.size + uniqueIds.size === before) {
+      if (++noChangeCount >= 15) break;
+    } else noChangeCount = 0;
+  }
+
+  let content = "";
+  if (extractDisplayNames && extractUniqueIds) {
+    content = "=== DISPLAY NAMES ===\\n" + Array.from(displayNames).sort().join("\\n") + "\\n\\n=== UNIQUE IDS ===\\n" + Array.from(uniqueIds).sort().join("\\n");
+  } else if (extractDisplayNames) {
+    content = Array.from(displayNames).sort().join("\\n");
+  } else {
+    content = Array.from(uniqueIds).sort().join("\\n");
+  }
+
+  const blob = new Blob([content], { type: "text/plain" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = sanitizedUsername + "-idm-roles.txt";
+  link.click();
+  console.log("Done! " + displayNames.size + " display names, " + uniqueIds.size + " unique IDs");
+})();`;
+
+            const state = {
+                users: [],
+                nextUserId: 1,
+                comparisons: {},
+                activeTab: null,
+            };
+
+            const elements = {
+                scriptToggle: document.getElementById("scriptToggle"),
+                scriptContent: document.getElementById("scriptContent"),
+                scriptChevron: document.getElementById("scriptChevron"),
+                copyScriptBtn: document.getElementById("copyScriptBtn"),
+                copyStatus: document.getElementById("copyStatus"),
+                scraperScript: document.getElementById("scraperScript"),
+                compareTypeRadios: document.querySelectorAll(
+                    'input[name="compareType"]',
+                ),
+                transformSection: document.getElementById("transformSection"),
+                applyTransform: document.getElementById("applyTransform"),
+                addUserBtn: document.getElementById("addUserBtn"),
+                usersContainer: document.getElementById("usersContainer"),
+                compareBtn: document.getElementById("compareBtn"),
+                exportBtn: document.getElementById("exportBtn"),
+                results: document.getElementById("results"),
+                tabNav: document.getElementById("tabNav"),
+                tabContent: document.getElementById("tabContent"),
+                toastContainer: document.getElementById("toastContainer"),
+            };
+
+            function init() {
+                elements.scraperScript.textContent = SCRAPER_SCRIPT;
+                addUser();
+                addUser();
+                setupEventListeners();
+                handleCompareTypeChange(); // ensure transform section matches default radio
+                checkReadyToCompare();
+            }
+
+            function setupEventListeners() {
+                elements.scriptToggle.addEventListener("click", toggleScript);
+                elements.copyScriptBtn.addEventListener("click", copyScript);
+                elements.compareTypeRadios.forEach((radio) => {
+                    radio.addEventListener("change", handleCompareTypeChange);
+                });
+                elements.applyTransform.addEventListener("change", () => {
+                    if (Object.keys(state.comparisons).length > 0) {
+                        showToast("Click Compare Roles to update results");
+                    }
+                    checkReadyToCompare();
+                });
+                elements.addUserBtn.addEventListener("click", addUser);
+                elements.compareBtn.addEventListener("click", compareRoles);
+                elements.exportBtn.addEventListener("click", exportToCSV);
+            }
+
+            function showToast(message, duration = 4000) {
+                const toast = document.createElement("div");
+                toast.className =
+                    "toast-in bg-zinc-800 border border-zinc-700 text-zinc-200 px-4 py-3 rounded-lg shadow-lg text-sm max-w-xs";
+                toast.textContent = message;
+                elements.toastContainer.appendChild(toast);
+
+                setTimeout(() => {
+                    toast.classList.remove("toast-in");
+                    toast.classList.add("toast-out");
+                    setTimeout(() => toast.remove(), 300);
+                }, duration);
+            }
+
+            function toggleScript() {
+                elements.scriptContent.classList.toggle("hidden");
+                elements.scriptChevron.style.transform =
+                    elements.scriptContent.classList.contains("hidden")
+                        ? ""
+                        : "rotate(180deg)";
+            }
+
+            async function copyScript() {
+                try {
+                    await navigator.clipboard.writeText(SCRAPER_SCRIPT);
+                    elements.copyStatus.innerHTML =
+                        '<span class="text-emerald-400">Copied!</span>';
+                    setTimeout(
+                        () => (elements.copyStatus.innerHTML = ""),
+                        2500,
+                    );
+                } catch (e) {
+                    elements.copyStatus.innerHTML =
+                        '<span class="text-red-400">Failed</span>';
+                }
+            }
+
+            function handleCompareTypeChange() {
+                const selectedType = document.querySelector(
+                    'input[name="compareType"]:checked',
+                ).value;
+
+                elements.transformSection.style.display =
+                    selectedType === "uniqueIds" ? "block" : "none";
+
+                if (Object.keys(state.comparisons).length > 0) {
+                    showToast("Click Compare Roles to update results");
+                }
+                checkReadyToCompare();
+            }
+
+            function addUser() {
+                const userId = state.nextUserId++;
+                const userCard = document.createElement("div");
+                userCard.className =
+                    "bg-zinc-800/50 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors";
+                userCard.dataset.userId = userId;
+
+                const canRemove = state.users.length >= 2;
+
+                userCard.innerHTML = `
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-md bg-accent text-zinc-100 flex items-center justify-center text-sm font-semibold">${userId}</div>
+              <span class="text-sm font-medium text-zinc-300">User ${userId}</span>
+            </div>
+            ${canRemove ? '<button class="remove-user-btn text-red-400 hover:text-red-300 hover:bg-red-400/10 px-2 py-1 rounded text-sm transition-colors">Remove</button>' : ""}
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
+            <div>
+              <label class="block text-xs font-medium text-zinc-500 mb-1.5">Username</label>
+              <input type="text" class="username-input w-full bg-zinc-800 border border-zinc-700 rounded-md px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent/30" placeholder="Enter username" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-zinc-500 mb-1.5">Role File</label>
+              <input type="file" class="file-input w-full text-sm text-zinc-400" accept=".txt,.text,.csv" />
+            </div>
+          </div>
+          <div class="status-display text-sm min-h-[20px] flex items-center gap-2"></div>
+        `;
+
+                elements.usersContainer.appendChild(userCard);
+
+                state.users.push({
+                    id: userId,
+                    username: "",
+                    displayNames: [],
+                    uniqueIds: [],
+                    hasData: false,
+                });
+
+                const usernameInput = userCard.querySelector(".username-input");
+                const fileInput = userCard.querySelector(".file-input");
+                const removeBtn = userCard.querySelector(".remove-user-btn");
+
+                const syncUsername = () => {
+                    const u = state.users.find((x) => x.id === userId);
+                    u.username = usernameInput.value.trim();
+                    checkReadyToCompare();
+                };
+
+                usernameInput.addEventListener("input", syncUsername);
+                usernameInput.addEventListener("change", syncUsername);
+                syncUsername(); // handle autofill or pre-filled values
+
+                fileInput.addEventListener("change", (e) =>
+                    handleFileUpload(e.target.files[0], userId),
+                );
+
+                if (removeBtn) {
+                    removeBtn.addEventListener("click", () =>
+                        removeUser(userId),
+                    );
+                }
+
+                checkReadyToCompare();
+            }
+
+            function removeUser(userId) {
+                document.querySelector(`[data-user-id="${userId}"]`)?.remove();
+                state.users.splice(
+                    state.users.findIndex((u) => u.id === userId),
+                    1,
+                );
+
+                document.querySelectorAll(".remove-user-btn").forEach((btn) => {
+                    btn.style.display = state.users.length <= 2 ? "none" : "";
+                });
+
+                if (Object.keys(state.comparisons).length > 0) {
+                    showToast("Click Compare Roles to update results");
+                }
+
+                checkReadyToCompare();
+            }
+
+            async function handleFileUpload(file, userId) {
+                if (!file) return;
+
+                const user = state.users.find((u) => u.id === userId);
+                const statusDisplay = document.querySelector(
+                    `[data-user-id="${userId}"] .status-display`,
+                );
+
+                try {
+                    const content = await file.text();
+                    const parsed = parseRoleFile(content);
+
+                    user.displayNames = parsed.displayNames || [];
+                    user.uniqueIds = parsed.uniqueIds || [];
+                    user.hasData =
+                        user.displayNames.length > 0 ||
+                        user.uniqueIds.length > 0;
+
+                    if (user.hasData) {
+                        const parts = [];
+                        if (user.displayNames.length)
+                            parts.push(
+                                `${user.displayNames.length} display names`,
+                            );
+                        if (user.uniqueIds.length)
+                            parts.push(`${user.uniqueIds.length} unique IDs`);
+
+                        statusDisplay.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span><span class="text-emerald-400 text-xs font-medium">Loaded: ${parts.join(", ")}</span>`;
+                    } else {
+                        statusDisplay.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500 shrink-0"></span><span class="text-red-400 text-xs font-medium">No roles found</span>`;
+                    }
+                } catch (e) {
+                    statusDisplay.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500 shrink-0"></span><span class="text-red-400 text-xs font-medium">Error reading file</span>`;
+                    user.hasData = false;
+                    user.displayNames = [];
+                    user.uniqueIds = [];
+                }
+
+                if (Object.keys(state.comparisons).length > 0) {
+                    showToast("Click Compare Roles to update results");
+                }
+
+                checkReadyToCompare();
+            }
+
+            function parseRoleFile(content) {
+                const hasDisplay = content.includes("=== DISPLAY NAMES ===");
+                const hasUnique = content.includes("=== UNIQUE IDS ===");
+                let displayNames = [];
+                let uniqueIds = [];
+
+                if (hasDisplay && hasUnique) {
+                    const parts = content.split("=== UNIQUE IDS ===");
+                    displayNames = parts[0]
+                        .replace("=== DISPLAY NAMES ===", "")
+                        .split("\n")
+                        .map((l) => l.trim())
+                        .filter((l) => l);
+
+                    uniqueIds = (parts[1] || "")
+                        .split("\n")
+                        .map((l) => l.trim())
+                        .filter((l) => l);
+                } else if (hasDisplay) {
+                    displayNames = content
+                        .replace("=== DISPLAY NAMES ===", "")
+                        .split("\n")
+                        .map((l) => l.trim())
+                        .filter((l) => l);
+                } else if (hasUnique) {
+                    uniqueIds = content
+                        .replace("=== UNIQUE IDS ===", "")
+                        .split("\n")
+                        .map((l) => l.trim())
+                        .filter((l) => l);
+                } else {
+                    const lines = content
+                        .split("\n")
+                        .map((l) => l.trim())
+                        .filter((l) => l);
+
+                    /*
+                    Looks like unique IDs if it starts with known prefixes or has colon structure.
+                    If more prefixes come up that this doesn't remove, add them to this section with a 1.startsWith("Enter Prefix Here") ||
+                    */
+                    if (
+                        lines.some(
+                            (l) =>
+                                l.includes(":") &&
+                                (l.startsWith("PRIV:") ||
+                                    l.startsWith("MX_") ||
+                                    l.startsWith("*") ||
+                                    l.startsWith("MX_PRIV:")),
+                        )
+                    ) {
+                        uniqueIds = lines;
+                    } else {
+                        displayNames = lines;
+                    }
+                }
+
+                // Deduplicate just in case
+                displayNames = Array.from(new Set(displayNames));
+                uniqueIds = Array.from(new Set(uniqueIds));
+
+                return { displayNames, uniqueIds };
+            }
+
+            function transformUniqueId(id) {
+                let t = id;
+
+                if (t.startsWith("PRIV:ROLE:") || t.startsWith("PRIV:GROUP:")) {
+                    t = t.split(":").slice(2).join(":");
+                } else if (t.startsWith("MX_PRIV:")) {
+                    const parts = t.split(":");
+                    t =
+                        parts.length > 2
+                            ? parts.slice(2).join(":")
+                            : t.substring(8);
+                }
+
+                return t.startsWith("*") ? t : "*" + t;
+            }
+
+            function checkReadyToCompare() {
+                const type = document.querySelector(
+                    'input[name="compareType"]:checked',
+                ).value;
+
+                const ready = state.users.filter(
+                    (u) => u.username && u.hasData,
+                );
+
+                let valid = ready.length >= 2;
+
+                if (valid) {
+                    valid =
+                        type === "displayNames"
+                            ? ready.every(
+                                  (u) => (u.displayNames || []).length > 0,
+                              )
+                            : ready.every(
+                                  (u) => (u.uniqueIds || []).length > 0,
+                              );
+                }
+
+                elements.compareBtn.disabled = !valid;
+
+                if (!valid) {
+                    // Clear stale results/export if inputs are not valid anymore
+                    elements.exportBtn.disabled = true;
+                    elements.results.classList.add("hidden");
+                    state.comparisons = {};
+                    state.activeTab = null;
+                    return;
+                }
+
+                // Valid form: export is only available after a compare run
+                elements.exportBtn.disabled =
+                    Object.keys(state.comparisons).length === 0;
+            }
+
+            function compareRoles() {
+                const type = document.querySelector(
+                    'input[name="compareType"]:checked',
+                ).value;
+                const transform =
+                    type === "uniqueIds" && elements.applyTransform.checked;
+
+                state.comparisons = {};
+
+                const users = state.users
+                    .filter((u) => u.username && u.hasData)
+                    .map((u) => ({
+                        ...u,
+                        displayNames: Array.from(new Set(u.displayNames || [])),
+                        uniqueIds: Array.from(new Set(u.uniqueIds || [])),
+                    }));
+
+                for (let i = 0; i < users.length; i++) {
+                    for (let j = i + 1; j < users.length; j++) {
+                        const u1 = users[i];
+                        const u2 = users[j];
+
+                        let d1 =
+                            type === "displayNames"
+                                ? u1.displayNames
+                                : u1.uniqueIds;
+                        let d2 =
+                            type === "displayNames"
+                                ? u2.displayNames
+                                : u2.uniqueIds;
+
+                        if (transform) {
+                            d1 = d1.map(transformUniqueId);
+                            d2 = d2.map(transformUniqueId);
+                        }
+
+                        // Dedup after transform
+                        d1 = Array.from(new Set(d1));
+                        d2 = Array.from(new Set(d2));
+
+                        const s1 = new Set(d1);
+                        const s2 = new Set(d2);
+
+                        state.comparisons[`${u1.id}-${u2.id}`] = {
+                            user1: u1,
+                            user2: u2,
+                            missingFrom1: d2.filter((r) => !s1.has(r)).sort(),
+                            missingFrom2: d1.filter((r) => !s2.has(r)).sort(),
+                            shared: d1.filter((r) => s2.has(r)).sort(),
+                            total1: d1.length,
+                            total2: d2.length,
+                        };
+                    }
+                }
+
+                displayResults();
+                checkReadyToCompare();
+            }
+
+            function displayResults() {
+                const keys = Object.keys(state.comparisons);
+                if (!keys.length) return;
+
+                elements.tabNav.innerHTML = "";
+                elements.tabContent.innerHTML = "";
+
+                keys.forEach((key, i) => {
+                    const c = state.comparisons[key];
+
+                    const tab = document.createElement("button");
+                    tab.className = `px-4 sm:px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                        i === 0
+                            ? "text-accent-text border-accent"
+                            : "text-zinc-500 border-transparent hover:text-zinc-400"
+                    }`;
+                    tab.textContent = `${c.user1.username} vs ${c.user2.username}`;
+                    tab.onclick = () => switchTab(key);
+                    elements.tabNav.appendChild(tab);
+
+                    const panel = document.createElement("div");
+                    panel.id = `tab-${key}`;
+                    panel.className =
+                        i === 0 ? "p-4 sm:p-5" : "p-4 sm:p-5 hidden";
+                    panel.innerHTML = `
+            <div class="grid grid-cols-3 gap-3 sm:gap-4 mb-6">
+              <div class="bg-zinc-800/50 border border-zinc-800 rounded-lg p-3 sm:p-4">
+                <div class="text-xs text-zinc-500 mb-1">${escapeHtml(c.user1.username)}</div>
+                <div class="text-xl sm:text-2xl font-semibold text-zinc-100">${c.total1}</div>
+                <div class="text-xs text-zinc-500">total</div>
+              </div>
+              <div class="bg-zinc-800/50 border border-zinc-800 rounded-lg p-3 sm:p-4">
+                <div class="text-xs text-zinc-500 mb-1">${escapeHtml(c.user2.username)}</div>
+                <div class="text-xl sm:text-2xl font-semibold text-zinc-100">${c.total2}</div>
+                <div class="text-xs text-zinc-500">total</div>
+              </div>
+              <div class="bg-zinc-800/50 border border-zinc-800 rounded-lg p-3 sm:p-4">
+                <div class="text-xs text-zinc-500 mb-1">Shared</div>
+                <div class="text-xl sm:text-2xl font-semibold text-emerald-400">${c.shared.length}</div>
+                <div class="text-xs text-zinc-500">common</div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+              <div>
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="bg-red-500/15 text-red-400 px-2 py-1 rounded text-xs font-medium">Missing from ${escapeHtml(c.user1.username)}</span>
+                  <span class="text-xs text-zinc-500">${c.missingFrom1.length}</span>
+                </div>
+                <div class="bg-zinc-950 border border-zinc-800 rounded-md p-4 max-h-80 overflow-y-auto font-mono text-xs sm:text-sm leading-relaxed text-zinc-400">
+                  ${
+                      c.missingFrom1.length
+                          ? c.missingFrom1.map(escapeHtml).join("<br>")
+                          : '<span class="text-zinc-600 italic">None</span>'
+                  }
+                </div>
+              </div>
+
+              <div>
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="bg-amber-500/15 text-amber-400 px-2 py-1 rounded text-xs font-medium">Missing from ${escapeHtml(c.user2.username)}</span>
+                  <span class="text-xs text-zinc-500">${c.missingFrom2.length}</span>
+                </div>
+                <div class="bg-zinc-950 border border-zinc-800 rounded-md p-4 max-h-80 overflow-y-auto font-mono text-xs sm:text-sm leading-relaxed text-zinc-400">
+                  ${
+                      c.missingFrom2.length
+                          ? c.missingFrom2.map(escapeHtml).join("<br>")
+                          : '<span class="text-zinc-600 italic">None</span>'
+                  }
+                </div>
+              </div>
+            </div>
+          `;
+                    elements.tabContent.appendChild(panel);
+                });
+
+                elements.results.classList.remove("hidden");
+                state.activeTab = keys[0];
+
+                elements.results.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                });
+            }
+
+            function switchTab(key) {
+                const keys = Object.keys(state.comparisons);
+
+                keys.forEach((k, i) => {
+                    const tab = elements.tabNav.children[i];
+                    const panel = document.getElementById(`tab-${k}`);
+
+                    if (k === key) {
+                        tab.className =
+                            "px-4 sm:px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap text-accent-text border-accent";
+                        panel.classList.remove("hidden");
+                    } else {
+                        tab.className =
+                            "px-4 sm:px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap text-zinc-500 border-transparent hover:text-zinc-400";
+                        panel.classList.add("hidden");
+                    }
+                });
+
+                state.activeTab = key;
+            }
+
+            function exportToCSV() {
+                const keys = Object.keys(state.comparisons);
+                if (!keys.length) return;
+
+                let csv = "";
+
+                keys.forEach((key, idx) => {
+                    const c = state.comparisons[key];
+                    if (idx > 0) csv += "\n\n";
+
+                    // header
+                    csv += `"Missing from ${c.user1.username}","","Missing from ${c.user2.username}"\n`;
+
+                    const max = Math.max(
+                        c.missingFrom1.length,
+                        c.missingFrom2.length,
+                    );
+
+                    for (let i = 0; i < max; i++) {
+                        const r1 = (c.missingFrom1[i] || "").replace(
+                            /"/g,
+                            '""',
+                        );
+                        const r2 = (c.missingFrom2[i] || "").replace(
+                            /"/g,
+                            '""',
+                        );
+                        csv += `"${r1}","","${r2}"\n`;
+                    }
+                });
+
+                const blob = new Blob([csv], {
+                    type: "text/csv;charset=utf-8;",
+                });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = `role-comparison-${new Date().toISOString().slice(0, 10)}.csv`;
+
+                // Some browsers are picky if the link isn't in the DOM
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+
+                URL.revokeObjectURL(link.href);
+
+                showToast("CSV exported successfully");
+            }
+
+            function escapeHtml(text) {
+                const div = document.createElement("div");
+                div.textContent = text ?? "";
+                return div.innerHTML;
+            }
+
+            init();
+        </script>
+    </body>
+</html>
